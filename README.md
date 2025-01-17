@@ -9,7 +9,7 @@
 - Optional : CUDA/CUDNN, LSTM 모델 학습 속도 향상을 위해서 사용합니다.
 
 ## How to run
-- Windows
+### Windows
 - 파이썬 설치 필요
 - 파이썬 실행 가능(python/python3 Alias에 따라 실행 명령어 다름)
 ```
@@ -21,7 +21,7 @@ python3 ./data_aug.py
 python3 ./train_ILAGE.py
 ```
 
-- Ubuntu
+### Ubuntu
 - Python-3.10, Python-3.10-venv 사전 apt-get 으로 설치 필요
 - 파이썬 실행 가능(python/python3 Alias에 따라 실행 명령어 다름)
 ```
@@ -33,7 +33,7 @@ python3 ./data_aug.py
 python3 ./train_ILAGE.py
 ```
 
-## Result
+## Hyperparameter Setting
 | Model         | Parameter           | Value                            |
 |---------------|---------------------|----------------------------------|
 | Isolation Forest | n_estimators      | 100                             |
@@ -52,6 +52,9 @@ python3 ./train_ILAGE.py
 |               | Loss                | Binary Crossentropy              |
 | Ensemble      | Weight              | [0.4, 0.3, 0.3]                  |
 |               | Threshold           | 95%                              |
+
+
+## Result
 
 
 <!--

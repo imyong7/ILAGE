@@ -1,2 +1,4 @@
 /venv/
 /.idea/
+/model/best_model-*.h5
+/result/result-*.png

@@ -11,11 +11,13 @@ import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Input, LSTM, Dense, RepeatVector, Reshape, Flatten
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.callbacks import ModelCheckpoint
 
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import silhouette_score, mean_squared_error, mean_absolute_error
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, MiniBatchKMeans
 
 # Function to calculate Silhouette Score
 def calculate_silhouette(data, labels):
@@ -25,16 +27,18 @@ def calculate_silhouette(data, labels):
         return None
 
 
+# noinspection PyPackageRequirements
 if __name__ == "__main__":
     print("GPU available:", tf.test.is_gpu_available())
     input_dim = 9
     sequence_length = 3
-    epochs = 100
+    epochs = 1
     batch_size = 32
 
+    file_time = datetime.now().strftime("%Y%m%d%H%M%S")
     start_time = datetime.now()
     df_datetime = {}
-    df = pd.read_csv('./smart_info_data_augmented.csv')
+    df = pd.read_csv('./data/smart_info_data_augmented.csv')
     df["DateTime"] = pd.to_datetime(df["DateTime"])
 
     df_datetime = df['DateTime'].copy(deep=True)
@@ -84,6 +88,11 @@ if __name__ == "__main__":
 
 
     # LSTM-AutoEncoder
+    es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=50)
+
+    model_file_name = './model/best_model-{}.h5'.format(file_time)
+    mc = ModelCheckpoint(model_file_name, monitor='val_loss', mode='min', save_best_only=True)
+
     input_layer = Input(shape=(sequence_length, input_dim))
     encoded = LSTM(64, activation='tanh', return_sequences=True)(input_layer)
     encoded = LSTM(32, activation='tanh', return_sequences=False)(encoded)
@@ -99,7 +108,7 @@ if __name__ == "__main__":
     autoencoder.summary()
 
     # 모델 학습
-    history = autoencoder.fit(filtered_data, filtered_data, epochs=epochs, batch_size=batch_size, validation_split=0.2)
+    history = autoencoder.fit(filtered_data, filtered_data, epochs=epochs, batch_size=batch_size, validation_split=0.2, callbacks=[es, mc])
 
     # LSTM-AutoEncoder 복원 오차 계산
     # lstm_scores = autoencoder.predict(filtered_data)
@@ -139,9 +148,6 @@ if __name__ == "__main__":
         noise = np.random.normal(0, 1, (batch_size, input_dim))
         generated_data = generator.predict(noise)
 
-        print(filtered_data.shape, generated_data.shape)
-
-
         # Concatenate real and fake data
         combined_data = np.vstack((filtered_data, generated_data))
         labels = np.hstack((np.ones(filtered_data.shape[0]), np.zeros(generated_data.shape[0])))
@@ -162,12 +168,7 @@ if __name__ == "__main__":
     gan_scores_expanded = gan_scores[:, np.newaxis, np.newaxis]  # 차원 확장
     gan_scores_expanded = np.repeat(gan_scores_expanded, lstm_scores.shape[1], axis=1)
     gan_scores_expanded = np.repeat(gan_scores_expanded, lstm_scores.shape[2], axis=2)
-
-    print(gan_scores_expanded.shape)  # 출력: (48942, 3, 9)
-
     gan_scores_expanded = gan_scores_expanded.squeeze()
-
-    print(gan_scores_expanded.shape)  # 출력: (48942, 3, 9)
 
     # 앙상블 병합 (Weighted Average)
     ensemble_scores = 0.7 * lstm_scores + 0.3 * gan_scores_expanded
@@ -177,7 +178,7 @@ if __name__ == "__main__":
  
     # 이상치 탐지
     anomalies = ensemble_scores > threshold
-    print(f"Detected Anomalies: {np.sum(anomalies)}")
+    # print(f"Detected Anomalies: {np.sum(anomalies)}")
 
     # Isolation Forest 점수 (-1: 이상치, 1: 정상치)
     iso_forest_scores = (outlier_labels_filtered == 1).astype(int)  # 정상 데이터: 1, 이상치: 0
@@ -192,7 +193,7 @@ if __name__ == "__main__":
     # gan_scores = discriminator.predict(scaled_data)  # GAN에서 이상치 확률 계산
 
     # 앙상블 점수 병합 (Weighted Average)
-    print(len(iso_forest_scores_expanded), lstm_scores.shape, gan_scores_expanded.shape)
+    # print(len(iso_forest_scores_expanded), lstm_scores.shape, gan_scores_expanded.shape)
 
     # ensemble_scores = 0.4 * iso_forest_scores + 0.3 * lstm_scores + 0.3 * gan_scores_expanded
     ensemble_scores = 0.4 * iso_forest_scores_expanded + 0.3 * lstm_scores + 0.3 * gan_scores_expanded
@@ -236,26 +237,28 @@ if __name__ == "__main__":
     plt.axhline(ensemble_threshold, color='black', linestyle='--', label="Threshold")
 
     # 그래프 제목과 축
+    graph_file_name = "./result/result-{}.png".format(file_time)
     plt.title("Comparison of Model Scores Over Time")
-    plt.xlabel("DateTime")
+    plt.xlabel("Records")
     plt.ylabel("Score")
     plt.xticks(rotation=45)
     plt.legend()
     plt.grid()
     # plt.show()
-    plt.savefig("./result.png", bbox_inches='tight')
+    plt.savefig(graph_file_name, bbox_inches='tight')
 
 
 
     # KMeans for Silhouette Score Calculation
-    '''
-    kmeans = KMeans(n_clusters=2, random_state=42)
+    kmeans = MiniBatchKMeans(n_clusters=2, random_state=42, max_iter=1, init='random')
     kmeans_labels = kmeans.fit_predict(ensemble_scores_flattened.reshape(-1, 1))
     silhouette = calculate_silhouette(ensemble_scores_flattened.reshape(-1, 1), kmeans_labels)
 
     # MSE and MAE
-    mse = mean_squared_error(ensemble_scores_flattened, reconstructed_data.mean(axis=(1, 2)))
-    mae = mean_absolute_error(ensemble_scores_flattened, reconstructed_data.mean(axis=(1, 2)))
+    reconstructed_data_flattened = np.mean(reconstructed_data, axis=(1, 2))
+
+    mse = mean_squared_error(ensemble_scores_flattened, reconstructed_data_flattened)
+    mae = mean_absolute_error(ensemble_scores_flattened, reconstructed_data_flattened)
 
     # Print Results
     print("Silhouette Score:", silhouette)
@@ -263,4 +266,3 @@ if __name__ == "__main__":
     print("Mean Absolute Error (MAE):", mae)
     print("Threshold:", ensemble_threshold)
     print("Anomalies Detected:", np.sum(anomalies_flattened))
-    '''
