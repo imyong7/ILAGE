@@ -90,7 +90,7 @@ if __name__ == "__main__":
     # LSTM-AutoEncoder
     es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=50)
 
-    model_file_name = './model/best_model-{}.h5'.format(file_time)
+    model_file_name = './model/best_model-ILAGE-{}.h5'.format(file_time)
     mc = ModelCheckpoint(model_file_name, monitor='val_loss', mode='min', save_best_only=True)
 
     input_layer = Input(shape=(sequence_length, input_dim))
@@ -250,6 +250,7 @@ if __name__ == "__main__":
 
 
     # KMeans for Silhouette Score Calculation
+    print("KMeans clustering started : ", datetime.now())
     kmeans = MiniBatchKMeans(n_clusters=2, random_state=42, max_iter=1, init='random')
     kmeans_labels = kmeans.fit_predict(ensemble_scores_flattened.reshape(-1, 1))
     silhouette = calculate_silhouette(ensemble_scores_flattened.reshape(-1, 1), kmeans_labels)
@@ -257,6 +258,7 @@ if __name__ == "__main__":
     # MSE and MAE
     reconstructed_data_flattened = np.mean(reconstructed_data, axis=(1, 2))
 
+    print("KMeans clustering ended : ", datetime.now())
     mse = mean_squared_error(ensemble_scores_flattened, reconstructed_data_flattened)
     mae = mean_absolute_error(ensemble_scores_flattened, reconstructed_data_flattened)
 
