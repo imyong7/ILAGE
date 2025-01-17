@@ -32,7 +32,7 @@ if __name__ == "__main__":
     print("GPU available:", tf.test.is_gpu_available())
     input_dim = 9
     sequence_length = 3
-    epochs = 1
+    epochs = 100
     batch_size = 32
 
     file_time = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -247,18 +247,20 @@ if __name__ == "__main__":
     # plt.show()
     plt.savefig(graph_file_name, bbox_inches='tight')
 
+    # Ensure flattened arrays for MSE and MAE
+    ensemble_scores_flattened = ensemble_scores_flattened.flatten()
+    reconstructed_data_flattened = np.mean(reconstructed_data, axis=1)
+    reconstructed_data_flattened = reconstructed_data_flattened.flatten()
 
 
     # KMeans for Silhouette Score Calculation
-    print("KMeans clustering started : ", datetime.now())
-    kmeans = MiniBatchKMeans(n_clusters=2, random_state=42, max_iter=1, init='random')
+    print("KMeans clustering started:", datetime.now())
+    kmeans = MiniBatchKMeans(n_clusters=2, random_state=42)
     kmeans_labels = kmeans.fit_predict(ensemble_scores_flattened.reshape(-1, 1))
     silhouette = calculate_silhouette(ensemble_scores_flattened.reshape(-1, 1), kmeans_labels)
+    
 
-    # MSE and MAE
-    reconstructed_data_flattened = np.mean(reconstructed_data, axis=(1, 2))
-
-    print("KMeans clustering ended : ", datetime.now())
+    print("KMeans clustering ended:", datetime.now())
     mse = mean_squared_error(ensemble_scores_flattened, reconstructed_data_flattened)
     mae = mean_absolute_error(ensemble_scores_flattened, reconstructed_data_flattened)
 
