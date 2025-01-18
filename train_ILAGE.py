@@ -40,10 +40,14 @@ if __name__ == "__main__":
     df_datetime = {}
     df = pd.read_csv('./data/smart_info_data_augmented.csv')
     df["DateTime"] = pd.to_datetime(df["DateTime"])
-
     df_datetime = df['DateTime'].copy(deep=True)
-
     df.set_index("DateTime", inplace=True)
+
+    numerical_features = [
+        'Temperature', 'Percentage_Used', 'Host_Read_Commands', 'Host_Write_Commands',
+        'Controller_Busy_Time', 'Data_Units_Read_Numbers', 'Data_Units_Read_Bytes',
+        'Data_Units_Written_Numbers', 'Data_Units_Written_Bytes'
+    ]
 
     scaler = MinMaxScaler()
     scaled_data = scaler.fit_transform(df)
@@ -88,19 +92,19 @@ if __name__ == "__main__":
 
 
     # LSTM-AutoEncoder
-    es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=50)
+    es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=5)
 
     model_file_name = './model/best_model-ILAGE-{}.h5'.format(file_time)
     mc = ModelCheckpoint(model_file_name, monitor='val_loss', mode='min', save_best_only=True)
 
     input_layer = Input(shape=(sequence_length, input_dim))
-    encoded = LSTM(64, activation='tanh', return_sequences=True)(input_layer)
-    encoded = LSTM(32, activation='tanh', return_sequences=False)(encoded)
+    encoded = LSTM(64, activation='relu', return_sequences=True)(input_layer)
+    encoded = LSTM(32, activation='relu', return_sequences=False)(encoded)
 
     repeated = RepeatVector(sequence_length)(encoded)
 
-    decoded = LSTM(32, activation='tanh', return_sequences=True)(repeated)
-    decoded = LSTM(64, activation='tanh', return_sequences=True)(decoded)
+    decoded = LSTM(32, activation='relu', return_sequences=True)(repeated)
+    decoded = LSTM(64, activation='relu', return_sequences=True)(decoded)
     output_layer = Dense(input_dim, activation='sigmoid')(decoded)
 
     autoencoder = Model(inputs=input_layer, outputs=output_layer)
@@ -108,7 +112,13 @@ if __name__ == "__main__":
     autoencoder.summary()
 
     # 모델 학습
-    history = autoencoder.fit(filtered_data, filtered_data, epochs=epochs, batch_size=batch_size, validation_split=0.2, callbacks=[es, mc])
+    history = autoencoder.fit(
+        filtered_data, filtered_data,
+        epochs=epochs,
+        batch_size=batch_size,
+        validation_split=0.2,
+        callbacks=[es, mc]
+    )
 
     # LSTM-AutoEncoder 복원 오차 계산
     # lstm_scores = autoencoder.predict(filtered_data)
@@ -117,14 +127,14 @@ if __name__ == "__main__":
     reconstructed_data = autoencoder.predict(filtered_data)
 
     # 복원 오차 계산
-    reconstruction_errors = np.mean(np.abs(filtered_data - reconstructed_data), axis=1)
+    # reconstruction_errors = np.mean(np.abs(filtered_data - reconstructed_data), axis=1)
 
 
     # Generator 정의
     generator = Sequential([
         # Dense(64, activation='relu', input_dim=input_dim),
         # Dense(filtered_data.shape[1], activation='sigmoid')
-        Dense(64, activation='tanh', input_dim=input_dim),
+        Dense(32, activation='relu', input_dim=input_dim),
         Dense(sequence_length * input_dim, activation='sigmoid'),  # 3 (시퀀스 길이) * 9 (피처 수)
         Reshape((sequence_length, input_dim))  # 출력 차원을 (시퀀스 길이, 피처 수)로 변환
     ])
@@ -132,7 +142,7 @@ if __name__ == "__main__":
     # Discriminator 정의
     discriminator = Sequential([
         Flatten(input_shape=(sequence_length, input_dim)),  # 3차원을 2차원으로 평탄화
-        Dense(64, activation='tanh', input_dim=filtered_data.shape[1]),
+        Dense(32, activation='relu', input_dim=filtered_data.shape[1]),
         Dense(1, activation='sigmoid')
     ])
 
@@ -170,33 +180,13 @@ if __name__ == "__main__":
     gan_scores_expanded = np.repeat(gan_scores_expanded, lstm_scores.shape[2], axis=2)
     gan_scores_expanded = gan_scores_expanded.squeeze()
 
-    # 앙상블 병합 (Weighted Average)
-    ensemble_scores = 0.7 * lstm_scores + 0.3 * gan_scores_expanded
-
-    # 임계값 설정
-    threshold = np.percentile(ensemble_scores, 95)
- 
-    # 이상치 탐지
-    anomalies = ensemble_scores > threshold
-    # print(f"Detected Anomalies: {np.sum(anomalies)}")
-
     # Isolation Forest 점수 (-1: 이상치, 1: 정상치)
     iso_forest_scores = (outlier_labels_filtered == 1).astype(int)  # 정상 데이터: 1, 이상치: 0
     iso_forest_scores_expanded = iso_forest_scores[:, np.newaxis, np.newaxis]  # 차원 확장
     iso_forest_scores_expanded = np.repeat(iso_forest_scores_expanded, lstm_scores.shape[1], axis=1)
     iso_forest_scores_expanded = np.repeat(iso_forest_scores_expanded, lstm_scores.shape[2], axis=2)
 
-    # LSTM-AutoEncoder 복원 오차 점수
-    # lstm_scores = reconstruction_errors  # 복원 오차 (Reconstruction Error)
-
-    # GAN Discriminator 점수
-    # gan_scores = discriminator.predict(scaled_data)  # GAN에서 이상치 확률 계산
-
-    # 앙상블 점수 병합 (Weighted Average)
-    # print(len(iso_forest_scores_expanded), lstm_scores.shape, gan_scores_expanded.shape)
-
-    # ensemble_scores = 0.4 * iso_forest_scores + 0.3 * lstm_scores + 0.3 * gan_scores_expanded
-    ensemble_scores = 0.4 * iso_forest_scores_expanded + 0.3 * lstm_scores + 0.3 * gan_scores_expanded
+    ensemble_scores = 0.5 * iso_forest_scores_expanded + 0.2 * lstm_scores + 0.1 * gan_scores_expanded
 
     # 임계값 설정 (상위 95% 이상치)
     ensemble_threshold = np.percentile(ensemble_scores, 95)
@@ -255,7 +245,7 @@ if __name__ == "__main__":
 
     # KMeans for Silhouette Score Calculation
     print("KMeans clustering started:", datetime.now())
-    kmeans = MiniBatchKMeans(n_clusters=2, random_state=42)
+    kmeans = KMeans(n_clusters=2, random_state=42)
     kmeans_labels = kmeans.fit_predict(ensemble_scores_flattened.reshape(-1, 1))
     silhouette = calculate_silhouette(ensemble_scores_flattened.reshape(-1, 1), kmeans_labels)
     
