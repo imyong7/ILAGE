@@ -244,13 +244,14 @@ if __name__ == "__main__":
 
 
     # KMeans for Silhouette Score Calculation
-    print("KMeans clustering started:", datetime.now())
-    kmeans = KMeans(n_clusters=2, random_state=42)
-    kmeans_labels = kmeans.fit_predict(ensemble_scores_flattened.reshape(-1, 1))
-    silhouette = calculate_silhouette(ensemble_scores_flattened.reshape(-1, 1), kmeans_labels)
+    # print("KMeans clustering started:", datetime.now())
+    # kmeans = KMeans(n_clusters=2, random_state=42)
+    # kmeans_labels = kmeans.fit_predict(ensemble_scores_flattened.reshape(-1, 1))
+    # silhouette = calculate_silhouette(ensemble_scores_flattened.reshape(-1, 1), kmeans_labels)
+    silhouette = silhouette_score(ensemble_scores_flattened, outlier_labels)
     
 
-    print("KMeans clustering ended:", datetime.now())
+    # print("KMeans clustering ended:", datetime.now())
     mse = mean_squared_error(ensemble_scores_flattened, reconstructed_data_flattened)
     mae = mean_absolute_error(ensemble_scores_flattened, reconstructed_data_flattened)
 

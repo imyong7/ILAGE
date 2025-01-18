@@ -95,8 +95,13 @@ if __name__ == "__main__":
     # 3. Anomaly Detection Using Reconstruction Error
     reconstructions = lstm_autoencoder.predict(filtered_data)
 
-    mse = np.mean(np.power(filtered_data - reconstructions, 2), axis=(1, 2))
-    mae = np.mean(np.abs(filtered_data - reconstructions), axis=(1, 2))
+    # mse = np.mean(np.power(filtered_data - reconstructions, 2), axis=(1, 2))
+    # mae = np.mean(np.abs(filtered_data - reconstructions), axis=(1, 2))
+    mse = mean_squared_error(filtered_data - reconstructions)
+    mae = mean_absolute_error(filtered_data - reconstructions)
+
+
+
     threshold = np.percentile(mse, 95)  # Use the 95th percentile as the anomaly threshold
 
     lstm_anomalies = mse > threshold
