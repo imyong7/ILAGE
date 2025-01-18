@@ -98,13 +98,13 @@ if __name__ == "__main__":
     mc = ModelCheckpoint(model_file_name, monitor='val_loss', mode='min', save_best_only=True)
 
     input_layer = Input(shape=(sequence_length, input_dim))
-    encoded = LSTM(64, activation='relu', return_sequences=True)(input_layer)
-    encoded = LSTM(32, activation='relu', return_sequences=False)(encoded)
+    encoded = LSTM(32, activation='relu', return_sequences=True)(input_layer)
+    encoded = LSTM(16, activation='relu', return_sequences=False)(encoded)
 
     repeated = RepeatVector(sequence_length)(encoded)
 
-    decoded = LSTM(32, activation='relu', return_sequences=True)(repeated)
-    decoded = LSTM(64, activation='relu', return_sequences=True)(decoded)
+    decoded = LSTM(16, activation='relu', return_sequences=True)(repeated)
+    decoded = LSTM(32, activation='relu', return_sequences=True)(decoded)
     output_layer = Dense(input_dim, activation='sigmoid')(decoded)
 
     autoencoder = Model(inputs=input_layer, outputs=output_layer)
