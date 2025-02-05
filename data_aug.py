@@ -3,7 +3,7 @@ import numpy as np
 from collections import Counter
 pd.options.display.float_format = '{:.10f}'.format
 
-uniform_unit = 0.1
+uniform_unit = 0.05 # 0.1
 
 def est_avg_datetime_diff(data):
     df = {}
@@ -134,7 +134,7 @@ if __name__ == "__main__":
     latest_percentage_used = int(data.iloc[-1]['Percentage_Used'])
     sum_per_used = 0
 
-    start_per_used = 10
+    start_per_used = 28
 
     for i in range(latest_percentage_used + 1):
         len_rows = len(data[ data['Percentage_Used'] == i ])
